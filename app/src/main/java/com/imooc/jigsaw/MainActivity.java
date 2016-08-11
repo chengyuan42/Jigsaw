@@ -1,32 +1,89 @@
 package com.imooc.jigsaw;
 
 import android.graphics.Bitmap;
+import android.graphics.Color;
 import android.graphics.drawable.BitmapDrawable;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.view.GestureDetector;
+import android.view.MotionEvent;
 import android.view.View;
+import android.view.WindowManager;
 import android.view.animation.Animation;
 import android.view.animation.TranslateAnimation;
 import android.widget.GridLayout;
 import android.widget.ImageView;
+import android.widget.RelativeLayout;
 import android.widget.Toast;
 
 public class MainActivity extends AppCompatActivity {
 
+    private boolean isAnimRun = false; // 动画是否正在执行
+    private boolean isGameStarted = false; // 游戏是否开始
     private ImageView[][] iv_game_arr = new ImageView[3][5];// 利用二维数组创建若干个游戏小方块
 
     private GridLayout gl_main_game; // 游戏主界面
 
     private ImageView iv_null_imageView;  // 空方块
 
+    private GestureDetector mDetector; // 当前手势
+
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        return mDetector.onTouchEvent(event);
+    }
+
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent ev) {
+        mDetector.onTouchEvent(ev);
+        return super.dispatchTouchEvent(ev);
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        mDetector = new GestureDetector(this, new GestureDetector.OnGestureListener() {
+            @Override
+            public boolean onDown(MotionEvent motionEvent) {
+                return false;
+            }
+
+            @Override
+            public void onShowPress(MotionEvent motionEvent) {
+
+            }
+
+            @Override
+            public boolean onSingleTapUp(MotionEvent motionEvent) {
+                return false;
+            }
+
+            @Override
+            public boolean onScroll(MotionEvent motionEvent, MotionEvent motionEvent1, float v, float v1) {
+                return false;
+            }
+
+            @Override
+            public void onLongPress(MotionEvent motionEvent) {
+
+            }
+
+            @Override
+            public boolean onFling(MotionEvent motionEvent, MotionEvent motionEvent1, float v, float v1) {
+                int type = getDirByGes(motionEvent.getX(), motionEvent.getY(), motionEvent1.getX(), motionEvent1.getY());
+                changeByDir(type);
+//                Toast.makeText(MainActivity.this, "" + type, Toast.LENGTH_SHORT).show();
+                return false;
+            }
+        });
+
 
         Bitmap bigBm = ((BitmapDrawable) getResources().getDrawable(R.drawable.game_main)).getBitmap(); // 获取一张大的图
         int bigPicW = bigBm.getWidth() / 5; // 每个小方块的宽高
+
+        int ivWindH = getWindowManager().getDefaultDisplay().getWidth() / 5;
 
         // 初始化游戏的若干个小方块
         for (int i = 0; i < iv_game_arr.length; i++){
@@ -35,6 +92,7 @@ public class MainActivity extends AppCompatActivity {
 
                 iv_game_arr[i][j] = new ImageView(this);
                 iv_game_arr[i][j].setImageBitmap(bm);  // 设置每一个游戏小方块的图案
+                iv_game_arr[i][j].setLayoutParams(new RelativeLayout.LayoutParams(ivWindH, ivWindH));
                 iv_game_arr[i][j].setPadding(2, 2, 2, 2);  // 设置方块之间的间距
                 iv_game_arr[i][j].setTag(new GameData(i,j,bm));  // 绑定自定义的数据
                 iv_game_arr[i][j].setOnClickListener(new View.OnClickListener() {
@@ -61,6 +119,124 @@ public class MainActivity extends AppCompatActivity {
         }
 
         setNullImageView(iv_game_arr[2][4]);
+
+        randomMove(); // 随机打乱方块顺序
+    }
+
+    /**
+     * 根据手势的方向,获取空方块相应的相邻位置 如果存在方块,那么进行交换
+     *
+     * @param type 1:上 2:下 3:左 4:右
+     */
+    public void changeByDir(int type) {
+        changeByDir(type, true);
+    }
+
+
+    /**
+     * 根据手势的方向,获取空方块相应的相邻位置 如果存在方块,那么进行交换
+     *
+     * @param type   1:上 2:下 3:左 4:右
+     * @param isAnim true 有动画, false 没有动画
+     */
+    public void changeByDir(int type, boolean isAnim) {
+        // 当前空方块的位置
+        GameData mNullGameData = (GameData) iv_null_imageView.getTag();
+        int new_x = mNullGameData.x;
+        int new_y = mNullGameData.y;
+
+        if (type == 1) { // 要移动的方块在当前恐反恐的位置
+            new_x++;
+        } else if (type == 2) {
+            new_x--;
+        } else if (type == 3) {
+            new_y++;
+        } else if (type == 4) {
+            new_y--;
+        }
+
+        // 判断这个新坐标,是否存在
+        if (new_x >= 0 && new_x < iv_game_arr.length && new_y >= 0 && new_y < iv_game_arr[0].length) {
+            if (isAnim) {
+                changeDataByImageView(iv_game_arr[new_x][new_y]);
+            } else {
+                changeDataByImageView(iv_game_arr[new_x][new_y], isAnim);
+            }
+        } else {
+            // 不动
+        }
+    }
+
+    public void gameOver() {
+        boolean isGameOver = true;
+        // 要遍历每个游戏小方块
+        for (int i = 0; i < iv_game_arr.length; i++) {
+            for (int j = 0; j < iv_game_arr[0].length; j++) {
+                // 为空的方块数据不判断跳过
+                if (iv_game_arr[i][j] == iv_null_imageView) {
+                    continue;
+                }
+                GameData mGameData = (GameData) iv_game_arr[i][j].getTag();
+                if (!mGameData.isTrue()) {
+                    isGameOver = false;
+                    break;
+                }
+            }
+        }
+
+        if (isGameOver) {
+            Toast.makeText(this, "游戏结束", Toast.LENGTH_LONG).show();
+        }
+        // 为空的方块数据
+    }
+
+
+    /**
+     * 判断手势,是向右滑,向左滑
+     *
+     * @param start_x 手势的起始点x
+     * @param start_y 手势的起始点y
+     * @param end_x   手势的终止点x
+     * @param end_y   手势的终止点x
+     * @return 1:上 2:下 3:左 4:右
+     */
+    public int getDirByGes(float start_x, float start_y, float end_x, float end_y) {
+        boolean isLeftOrRight = (Math.abs(start_x - end_x) > Math.abs(start_y - end_y)) ? true : false;
+
+        if (isLeftOrRight) {  // 左右
+            boolean isLeft = start_x - end_x > 0 ? true : false;
+            if (isLeft) {
+                return 3;
+            } else {
+                return 4;
+            }
+        } else {  // 上下
+            boolean isUp = start_y - end_y > 0 ? true : false;
+            if (isUp) {
+                return 1;
+            } else {
+                return 2;
+            }
+        }
+    }
+
+    public void randomMove() {
+        // 打乱的次数
+        for (int i = 0; i < 100; i++) {
+            int type = (int) (Math.random() * 4) + 1;
+            changeByDir(type, false);
+            isGameStarted = true;
+        }
+        // 根据手势开始交互,无动画
+    }
+
+    /**
+     * 利用动画结束之后，交换两个方块的数据
+     *
+     * @param mImageView 点击的方块
+     */
+    public void changeDataByImageView(final ImageView mImageView) {
+        changeDataByImageView(mImageView, true);
     }
 
     /**
@@ -68,7 +244,26 @@ public class MainActivity extends AppCompatActivity {
      *  @param mImageView 点击的方块
      *
      */
-    public void changeDataByImageView(final ImageView mImageView){
+    public void changeDataByImageView(final ImageView mImageView, boolean isAnim) {
+        if (isAnimRun) {
+            return;
+        }
+
+        if (!isAnim) {
+            GameData mGameData = (GameData) mImageView.getTag();
+            iv_null_imageView.setImageBitmap(mGameData.bm);
+
+            GameData mNullGameData = (GameData) iv_null_imageView.getTag();
+            mNullGameData.bm = mGameData.bm;
+            mNullGameData.p_x = mGameData.p_x;
+            mNullGameData.p_y = mGameData.p_y;
+
+            setNullImageView(mImageView); //设置当前点为空方块
+            if (isGameStarted) {
+                gameOver();
+            }
+            return;
+        }
         // 创建动画，设置好方向，移动的距离
         TranslateAnimation translateAnimation = null;
 
@@ -82,18 +277,19 @@ public class MainActivity extends AppCompatActivity {
             translateAnimation = new TranslateAnimation(0.1f, 0.1f, 0.1f, mImageView.getWidth()); // 往右移
         }
         // 设置动画的时长
-        translateAnimation.setDuration(70);
+        translateAnimation.setDuration(500);
         // 设置动画结束后是否停留
         translateAnimation.setFillAfter(true);
         // 设置动画结束之后要真正的把数据交换
         translateAnimation.setAnimationListener(new Animation.AnimationListener() {
             @Override
             public void onAnimationStart(Animation animation) {
-
+                isAnimRun = true;
             }
 
             @Override
             public void onAnimationEnd(Animation animation) {
+                isAnimRun = false;
                 mImageView.clearAnimation();
                 GameData mGameData = (GameData)mImageView.getTag();
                 iv_null_imageView.setImageBitmap(mGameData.bm);
@@ -104,6 +300,9 @@ public class MainActivity extends AppCompatActivity {
                 mNullGameData.p_y = mGameData.p_y;
 
                 setNullImageView(mImageView); //设置当前点为空方块
+                if (isGameStarted) {
+                    gameOver();
+                }
             }
 
             @Override
@@ -163,6 +362,10 @@ public class MainActivity extends AppCompatActivity {
             this.bm = bm;
             this.p_x = x;
             this.p_y = y;
+        }
+
+        public boolean isTrue() {
+            return x == p_x && y == p_y;
         }
     }
 }
